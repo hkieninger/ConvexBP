@@ -104,8 +104,8 @@ class BeliefPropagation:
             v2f = (v2f0_vview**shaped_gamma * f2v0_vview**(shaped_gamma-1))**(1-damping) * v2f**damping
 
             # normalize messages
-            f2v /= np.max(f2v, axis=2)[:,:,np.newaxis]
-            v2f /= np.max(v2f, axis=2)[:,:,np.newaxis]
+            f2v /= np.max(f2v, axis=2, keepdims=True)
+            v2f /= np.max(v2f, axis=2, keepdims=True)
 
     def messages2beliefs(self, v2f, f2v, factors, temperature=1, max_normalization=False):
         '''
@@ -146,7 +146,7 @@ class BeliefPropagation:
 
         epsilons = np.zeros(max_iters)
         (prev_v2f, prev_f2v) = np.copy(next(message_generator))
-        iter = 1
+        iter = 0
         while iter < max_iters:
             (v2f, f2v) = np.copy(next(message_generator))
             epsilons[iter] = max(

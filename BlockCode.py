@@ -4,7 +4,7 @@ import utils
 
 class BlockCode:
 
-    def __init__(self, parity_check_matrix) -> None:
+    def __init__(self, parity_check_matrix : np.ndarray) -> None:
         self.H = parity_check_matrix
         (self.m, self.n) = self.H.shape
         self.dv = np.sum(parity_check_matrix, axis=0)
@@ -18,11 +18,11 @@ class BlockCode:
         self.r = self.k / self.n
 
     @classmethod
-    def fromAlistFile(cls, alist_filename):
+    def fromAlistFile(cls, alist_filename : str):
         return cls(BlockCode.read_alist_file(alist_filename))
     
     @staticmethod
-    def read_alist_file(filename):
+    def read_alist_file(filename : str) -> np.ndarray:
         """
         This function reads in an alist file and creates the
         corresponding parity check matrix H. The format of alist
@@ -41,7 +41,7 @@ class BlockCode:
             H[int(index)-1,lineNumber-4] = 1
         return H
     
-    def make_gen(self):
+    def make_gen(self) -> np.ndarray:
         """
         This function computes the corresponding generator matrix G to the given
         parity check matrix H.
@@ -52,8 +52,11 @@ class BlockCode:
         assert not np.any((G @ self.H.T) % 2)
         return G
     
-    def satisfy_parity(self, word):
-       return not np.any((self.H @ word) % 2)
+    def satisfy_parity(self, words : np.ndarray) -> np.ndarray:
+        '''
+        checks wether @words is/are a codeword
+        '''
+        return not np.any((self.H @ words) % 2, axis=-1)
     
     def codewords(self):
        '''
@@ -62,29 +65,32 @@ class BlockCode:
        '''
        return (utils.binaryArray(2**self.k, self.k) @ self.G) % 2
     
-    def adjacency_matrix(self):
+    def adjacency_matrix(self) -> np.ndarray:
        '''
-       @return the adjacency matrix of a factor graph corresponding to the block code (checknodes and dongles)
+       @return the adjacency matrix of a factor graph corresponding to the block code
+       in comparision to the parity-check matrix H, the adjacency matrix not only considers the checknodes but aswell the dongles as factors
        '''
        return np.concatenate((self.H, np.eye(self.n, dtype=int)), axis=0)
     
-    def checknode_factors(self):
+    def checknode_factors(self) -> np.ndarray:
         '''
         @return a numpy array representing the check node factors which can be used with the BeliefPropagation class
         '''
-        factor_shape = self.dc_max * (2,)
-        factors = np.empty(shape=(self.m,) + factor_shape)
-        for factor in range(self.m):
-            arange = np.arange(2**self.dc[factor], dtype=int)
+        factors = np.empty(shape=(self.m,) + self.dc_max * (2,))
+        for factor_idx in range(self.m):
+            arange = np.arange(2**self.dc[factor_idx], dtype=int)
             checks = np.ones_like(arange)
-            for _ in range(self.dc[factor]):
+            for _ in range(self.dc[factor_idx]):
                checks += arange & 1
                arange >>= 1
                checks %= 2
-            factors[factor] = np.tile(checks, 2**(self.dc_max - self.dc[factor])).reshape(factor_shape)
+            factor = checks.reshape(self.dc[factor_idx] * (2,))
+            for _ in range(self.dc_max - self.dc[factor_idx]):
+               factor = np.stack((factor,) * 2, axis=-1)
+            factors[factor_idx] = factor
         return factors
             
-    def dongle_factors_AWGN(self, y, EbN0):
+    def dongle_factors_AWGN(self, y : np.ndarray, EbN0 : float) -> np.ndarray:
         '''
         @return a numpy array representing the dongle factors for the received codeword @y from an AWGN channel of @EbN0
         '''
@@ -95,11 +101,15 @@ class BlockCode:
         f_y_x = lambda x: 1 / (np.sqrt(2 * np.pi) * sigma) * np.exp(-(y - (-1)**x)**2 / (2 * sigma**2))
         factors[:,0] = f_y_x(0)
         factors[:,1] = f_y_x(1)
-        for dimension in range(self.dc_max-1):
+        for _ in range(self.dc_max-1):
            factors = np.stack((factors,) * 2, axis=-1)
         return factors
     
-    def factors_AWGN(self, y, EbN0):
+    def factors_AWGN(self, y : np.ndarray, EbN0 : float) -> np.ndarray:
+       '''
+       @return a numpy array representing the checknode and dongle factors of the received codeword @y from an AWGN channel of @EbN0
+       both checknodes and dongles are considered as factors
+       '''
        return np.concatenate((self.checknode_factors(), self.dongle_factors_AWGN(y, EbN0)), axis=0)
 
 

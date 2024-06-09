@@ -1,6 +1,6 @@
 import numpy as np
 
-def binaryArray(stop, bit_width):
+def binaryArray(stop : int, bit_width : int) -> np.ndarray:
     '''
     creates an array of binary numbers from 0 to stop-1
     returns a matrix of shape (stop, bit_width)
