@@ -101,23 +101,28 @@ class BeliefPropagation:
             # factor node update
             f2v = (f2v0_vview**shaped_gamma * v2f0_vview**(shaped_gamma-1))**(1-damping) * f2v**damping
             # variable node update
-            v2f = (f2v0_vview**shaped_gamma * v2f0_vview**(shaped_gamma-1))**(1-damping) * v2f**damping
+            v2f = (v2f0_vview**shaped_gamma * f2v0_vview**(shaped_gamma-1))**(1-damping) * v2f**damping
 
             # normalize messages
             f2v /= np.max(f2v, axis=2)[:,:,np.newaxis]
             v2f /= np.max(v2f, axis=2)[:,:,np.newaxis]
 
-    def messages2beliefs(self, v2f, f2v, factors, temperature=1):
+    def messages2beliefs(self, v2f, f2v, factors, temperature=1, max_normalization=False):
         '''
         @return: (variable_beliefs, factor_beliefs)
             variable_beliefs.shape = (self.n, self.s)
             factor_beliefs.shape = (self.m, self.s, self.s, ..., self.s)
                                             [------ self.df_max -------]
         '''
+        if max_normalization:
+            normalization_operator = lambda a: np.max(a, axis=1, keepdims=True)
+        else:
+            normalization_operator = lambda a: np.sum(a, axis=1, keepdims=True)
+
         # compute variable beliefs
         variable_beliefs = np.prod(f2v, axis=1)
         # normalize such that variable belief is a probability distribution
-        variable_beliefs /= np.sum(variable_beliefs, axis=1, keepdims=True)
+        variable_beliefs /= normalization_operator(variable_beliefs)
         
         # compute factor beliefs
         v2f_fview = np.ones((self.m, self.df_max, self.s))
@@ -126,7 +131,36 @@ class BeliefPropagation:
         for port in range(self.df_max):
             factor_beliefs *= v2f_fview[:,port,:].reshape(self.message_shapes[port,:])
         # normalize such that factor belief is a probability distribution
-        factor_beliefs /= np.sum(factor_beliefs.reshape((self.m, self.s**self.df_max)), axis=1).reshape((self.m,) + self.df_max * (1,))
+        factor_beliefs /= normalization_operator(factor_beliefs.reshape((self.m, self.s**self.df_max))).reshape((self.m,) + self.df_max * (1,))
         
         return (variable_beliefs, factor_beliefs)
 
+    def run_belief_propagation(self, max_iters, convergence_threshold, factors, max_product, gamma, temperature=1, damping=0):
+        message_generator = self.belief_propagation(
+            factors=factors,
+            max_product=max_product,
+            gamma=gamma,
+            temperature=temperature,
+            damping=damping
+        )
+
+        epsilons = np.zeros(max_iters)
+        (prev_v2f, prev_f2v) = np.copy(next(message_generator))
+        iter = 1
+        while iter < max_iters:
+            (v2f, f2v) = np.copy(next(message_generator))
+            epsilons[iter] = max(
+                np.max(np.abs(f2v[self.v_mask] - prev_f2v[self.v_mask])), 
+                np.max(np.abs(v2f[self.v_mask] - prev_v2f[self.v_mask]))
+                )
+            (prev_v2f, prev_f2v) = (v2f, f2v)
+            if epsilons[iter] < convergence_threshold:
+                break
+            iter += 1
+
+        (variable_beliefs, check_beliefs) = self.messages2beliefs(
+            v2f=v2f, f2v=f2v, factors=factors, 
+            temperature=temperature, 
+            max_normalization=max_product)
+        
+        return (variable_beliefs, check_beliefs, epsilons, iter)

@@ -5,10 +5,11 @@ import BeliefPropagation
 
 with np.errstate(all="raise"):
     np.random.seed(456789)
+    #np.random.seed(436789)
 
     EbN0 = 2
     max_iters = 10
-    code = snippets.n5k2_acyclic
+    code = snippets.n8k8_acyclic
 
     y = snippets.simulateAWGNChannelTransmission(code, EbN0, 1)
     print(y)
@@ -32,15 +33,14 @@ with np.errstate(all="raise"):
     plt.plot(epsilons)
     plt.show()
 
-    (vbelief, fbelief) = bp.messages2beliefs(v2f, f2v, factors)
+    (vbelief, fbelief) = bp.messages2beliefs(v2f, f2v, factors, max_normalization=True)
     mpa_assignment = np.argmax(vbelief, axis=1)
     print(vbelief)
 
-    map_assignment = snippets.bruteforce_blockwiseMAP_AWGNChannel(code, y)
+    map_assignment = np.squeeze(snippets.bruteforce_blockwiseMAP_AWGNChannel(code, y))
 
-    print(mpa_assignment)
-    print(map_assignment)
-    print(y)
+    print(f"MPA assignment: {mpa_assignment}, parity check: {code.satisfy_parity(mpa_assignment)}")
+    print(f"MAP assignment: {map_assignment}, parity check: {code.satisfy_parity(map_assignment)}")
 
 
 

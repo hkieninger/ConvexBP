@@ -18,6 +18,8 @@ class TestBeliefPropagation(unittest.TestCase):
     
     def test_maxproduct_bp(self):
         # compute MPA assignment
+        for cw in range(self.num_cws):
+            message_generator = self.bp.belief_propagation(factors=)
 
         # compute factors
 

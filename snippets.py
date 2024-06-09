@@ -13,6 +13,10 @@ H_n5k2_acyclic = np.array([[1, 0, 1, 0, 0],
                            [0, 0, 0, 1, 1]], dtype=int)
 n5k2_acyclic = BlockCode.BlockCode(H_n5k2_acyclic)
 
+# acyclic code
+H_n8k8_acyclic = np.load('blockcodes/random_acyclic_LDPC.npy')
+n8k8_acyclic = BlockCode.BlockCode(H_n8k8_acyclic)
+
 # Hamming Code: contains cycles
 H_hamming = np.array([[1, 0, 1, 0, 1, 0, 1],
                       [0, 1, 1, 0, 0, 1, 1],

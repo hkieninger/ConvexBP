@@ -81,21 +81,22 @@ class BlockCode:
                checks += arange & 1
                arange >>= 1
                checks %= 2
-            factors[factor] = np.concatenate((checks, np.zeros(2**self.dc_max - 2**self.dc[factor]))).reshape(factor_shape)
+            factors[factor] = np.tile(checks, 2**(self.dc_max - self.dc[factor])).reshape(factor_shape)
         return factors
             
     def dongle_factors_AWGN(self, y, EbN0):
         '''
         @return a numpy array representing the dongle factors for the received codeword @y from an AWGN channel of @EbN0
         '''
-        factor_shape = self.dc_max * [2]
-        factors = np.zeros(shape=[self.n] + factor_shape)
+        factors = np.empty((self.n, 2))
 
         EsN0_lin =  self.r * 10**(EbN0/10)
         sigma = 1 / np.sqrt(2 * EsN0_lin)
         f_y_x = lambda x: 1 / (np.sqrt(2 * np.pi) * sigma) * np.exp(-(y - (-1)**x)**2 / (2 * sigma**2))
-        factors[(slice(None),) + (0,) * self.dc_max] = f_y_x(0)
-        factors[(slice(None),) + (1,) + (0,) * (self.dc_max-1)] = f_y_x(1)
+        factors[:,0] = f_y_x(0)
+        factors[:,1] = f_y_x(1)
+        for dimension in range(self.dc_max-1):
+           factors = np.stack((factors,) * 2, axis=-1)
         return factors
     
     def factors_AWGN(self, y, EbN0):
