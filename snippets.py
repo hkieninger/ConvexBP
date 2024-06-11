@@ -99,3 +99,4 @@ def decode_with_standart_bp(blockwise : bool, rx : np.ndarray, EbN0 : float,
         )
     mpa_estimate = np.argmax(var_beliefs, axis=2) # decode with beliefs
     return (mpa_estimate, iterations)
+

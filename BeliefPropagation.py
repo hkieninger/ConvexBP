@@ -2,6 +2,11 @@ import numpy as np
 from collections.abc import Iterator
 
 class BeliefPropagation:
+    '''
+    General implementation of Belief Propagation using messages in linear domain as described in Weiss 2007
+    -variables can have arbitrary state domain size
+    -factors can be arbitrary non-negative functions
+    '''
 
     def __init__(self, adjacency_matrix : np.ndarray, state_domain_size : int) -> None:
         self.adjacency_matrix = adjacency_matrix
@@ -45,6 +50,19 @@ class BeliefPropagation:
         v_mask[row_vview, col_vview] = True # Mask, which contains the valid entries of the variable node view.
         return row, col, f_mask, f2v_reshape, v_mask, v2f_reshape
     
+    def c_var_Bethe(self):
+        return 1 - self.dv
+    
+    def c_var_TrivialCBP(self):
+        return np.zeros(self.n)
+    
+    def c_var_DefaultCBP(self):
+        inverse_df = 1 / self.df
+        c = np.zeros(self.n)
+        for (factor, variable) in zip(self.row,self.col):
+            c[variable] -= inverse_df[factor]
+        return c 
+    
     def gammaBethe(self):
         return np.ones(self.n)
 
@@ -52,17 +70,23 @@ class BeliefPropagation:
         return self.dv
     
     def gammaDefaultCBP(self):
-        inverse_df = 1 / self.df
-        c = np.zeros(self.n)
-        for (factor, variable) in zip(self.row,self.col):
-            c[variable] -= inverse_df[factor]
-        return self.dv / (1 - c)
+        return self.dv / (1 - self.c_var_DefaultCBP())
 
 
-    def belief_propagation(self, factors, max_product, gamma, temperature=1, damping=0) -> Iterator[tuple[np.ndarray, np.ndarray]]:
+    def belief_propagation(self, factors : np.ndarray, max_product : bool, gamma : np.ndarray, temperature : float = 1, damping : float = 0) -> Iterator[tuple[np.ndarray, np.ndarray]]:
         '''
-        @factors: (n, s, s, ..., s) matrix, for factors with less than df_max arguments, place the factor in the first df dimension and set the remaining entries to 0
-                     [-- df_max --] 
+        creates a generator which yields the BP messages
+        @factors: (n, s, s, ..., s) matrix, for factors with less than df_max arguments repeat the function along the unused axes
+                     [-- df_max --]
+        @max_product: if true MPA is used ele SPA
+        @gamma: ConvexBP paramters computed from double counting numbers c_i of Free Energy Approximation (see Weiss 2007)
+        @temperature: temperature of Free Energy Approximation (see Weiss 2007)
+        @damping: damping used for message passing update, 0 no damping, 1 new message = previous message
+        @return a generator
+            generator yields (variable to factor, factor to variable)
+            both message arrays are from variable perspective: shape (self.m, self.dv_max, self.s)
+            messages are normalized such that maximum entry is 1
+            to access the messages one can use self.v_mask
         '''
         if max_product:
             sum_operator = lambda array, axis: np.max(array, axis=axis, keepdims=True)
@@ -107,8 +131,10 @@ class BeliefPropagation:
             f2v /= np.max(f2v, axis=2, keepdims=True)
             v2f /= np.max(v2f, axis=2, keepdims=True)
 
-    def messages2beliefs(self, v2f, f2v, factors, temperature=1, max_normalization=False):
+    def messages2beliefs(self, v2f : np.ndarray, f2v : np.ndarray, factors : np.ndarray, temperature : float = 1, max_normalization : bool = False):
         '''
+        @v2f: variable to factor messages obtained from belief_propagation
+        @f2v: factor to variable messages
         @return: (variable_beliefs, factor_beliefs)
             variable_beliefs.shape = (self.n, self.s)
             factor_beliefs.shape = (self.m, self.s, self.s, ..., self.s)
@@ -136,6 +162,17 @@ class BeliefPropagation:
         return (variable_beliefs, factor_beliefs)
 
     def run_belief_propagation(self, max_iters, convergence_threshold, factors, max_product, gamma, temperature=1, damping=0):
+        '''
+        runs belief propagation until convergence or @max_iters has been reached
+        @convergence_threshold maximum difference between previous and current messages for them to be considered identical
+        @other_arguments see belief_propagation
+        @return (variable beliefs, factor beliefs, epsilons, iter)
+            -variable beliefs: shape (self.n, self.s)
+            -factor beliefs: shape (self.m, self.s, self.s, ..., self.s), function repeated along unused dimensions
+                                            [------ self.df_max -------]
+            -epsilons: maximum difference between previous and current messages for the iterations, shape (self.max_iters,)
+            -iter: amount of iterations until convergence, if iter == max_iters BP didn't converge
+        '''
         message_generator = self.belief_propagation(
             factors=factors,
             max_product=max_product,
@@ -158,9 +195,66 @@ class BeliefPropagation:
                 break
             iter += 1
 
-        (variable_beliefs, check_beliefs) = self.messages2beliefs(
+        (variable_beliefs, factor_beliefs) = self.messages2beliefs(
             v2f=v2f, f2v=f2v, factors=factors, 
             temperature=temperature, 
             max_normalization=max_product)
         
-        return (variable_beliefs, check_beliefs, epsilons, iter)
+        return (variable_beliefs, factor_beliefs, epsilons, iter)
+    
+    def satisfyAdmissibility(self, variable_beliefs, factor_beliefs, c_var, factors, temperature : float = 1, rtol : float = 1e-5, atol=1e-8) -> bool:
+        '''
+        only use for factor graphs with small self.n, complexity: O(self.s^self.n)
+        checks whether beliefs satisfy admissibility condition (see Weiss 2007)
+        '''
+        probability_distribution_factor = np.ones((self.s,) * self.n)
+        probability_distribution_marginals = np.ones((self.s,) * self.n)
+        for factor in range(self.m):
+            variables = np.nonzero(self.adjacency_matrix[factor,:])[0]
+            shape = np.ones(self.n, dtype=int)
+            shape[variables] = self.s
+            idx_non_const_dims = (slice(None),) * self.df[factor] + (self.df_max - self.df[factor]) * (1,)
+            probability_distribution_factor *= factors[factor][idx_non_const_dims].reshape(shape)
+            probability_distribution_marginals *= factor_beliefs[factor][idx_non_const_dims].reshape(shape)
+            # normalize to avoid numerical underflow
+            probability_distribution_factor /= np.max(probability_distribution_factor)
+            probability_distribution_marginals /= np.max(probability_distribution_marginals)
+        
+        variable_beliefs[variable_beliefs==0] = np.min(variable_beliefs[variable_beliefs != 0]) # TEST: remove later
+        for variable in range(self.n):
+            shape = np.ones(self.n, dtype=int)
+            shape[variable] = self.s
+            probability_distribution_marginals *= (variable_beliefs[variable]**c_var[variable]).reshape(shape)
+            # normalize to avoid numerical underflow
+            probability_distribution_marginals /= np.max(probability_distribution_marginals)
+        
+        probability_distribution_factor **= 1/temperature
+
+        diff = np.abs(probability_distribution_factor - probability_distribution_marginals)
+        tolerance = np.maximum(rtol * np.maximum(np.abs(probability_distribution_factor), np.abs(probability_distribution_marginals)), atol) # implementation as in math.isclose()
+        return np.all(diff <= tolerance)
+
+    def satisfyMarginalization(self, variable_beliefs, factor_beliefs, max=False, rtol : float = 1e-5, atol : float = 1e-8) -> bool:
+        '''
+        checks whether beliefs satisfy marginalization conditions (see Weiss 2007)
+        '''
+        if max:
+            marginalisation_operator = lambda a, axis: np.max(a, axis=axis)
+        else:
+            marginalisation_operator = lambda a, axis: np.sum(a, axis=axis)
+
+        for factor in range(self.m):
+            variables = np.nonzero(self.adjacency_matrix[factor,:])[0]
+            for var_idx in range(self.df[factor]):
+                axes = list(range(self.df_max))
+                del axes[var_idx]
+                marginal = marginalisation_operator(factor_beliefs[factor], tuple(axes))
+                marginal /= np.max(marginal)
+
+                variable_belief = variable_beliefs[variables[var_idx]]
+                variable_belief /= np.max(variable_belief)
+
+                if np.any(np.abs(marginal - variable_belief) > np.maximum(rtol * np.maximum(np.abs(marginal), np.abs(variable_belief)), atol)):
+                    return False
+                
+        return True
