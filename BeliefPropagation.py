@@ -17,7 +17,7 @@ class BeliefPropagation:
         self.df = np.sum(adjacency_matrix, axis=1)
         self.df_max = np.max(self.df)
 
-        # 
+        # masks and mapping for belief propagation
         (self.row, self.col, self.f_mask, self.f2v_reshape, self.v_mask, self.v2f_reshape) = self.masks()
 
         # rows of self.message_shapes are used to reshape the messages in the factor node update
@@ -131,7 +131,7 @@ class BeliefPropagation:
             f2v /= np.max(f2v, axis=2, keepdims=True)
             v2f /= np.max(v2f, axis=2, keepdims=True)
 
-    def messages2beliefs(self, v2f : np.ndarray, f2v : np.ndarray, factors : np.ndarray, temperature : float = 1, max_normalization : bool = False):
+    def messages2beliefs(self, v2f : np.ndarray, f2v : np.ndarray, factors : np.ndarray, temperature : float = 1, max_normalization : bool = False) -> tuple[np.ndarray, np.ndarray]:
         '''
         @v2f: variable to factor messages obtained from belief_propagation
         @f2v: factor to variable messages
