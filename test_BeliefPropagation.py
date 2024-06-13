@@ -5,8 +5,8 @@ import snippets
 
 class TestBeliefPropagation(unittest.TestCase):
 
-    code = snippets.n5k2_acyclic
-    num_cws = int(1e3)
+    code = snippets.n8k8_acyclic
+    num_cws = int(1e4)
     EbN0 = 2
     bp_iterations = 20
     convergence_threshold = 1e-6

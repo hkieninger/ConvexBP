@@ -33,7 +33,7 @@ class BinaryBP(BeliefPropagation.BeliefPropagation):
             diverging_lr = np.isposinf(v2f_fview)
             v2f_fview[diverging_lr] = 0
             for extrinsic_port in range(self.df_max):
-                accumulator = temperated_factors
+                accumulator = np.copy(temperated_factors)
                 for port in range(self.df_max):
                     if port == extrinsic_port:
                         continue
@@ -54,7 +54,7 @@ class BinaryBP(BeliefPropagation.BeliefPropagation):
             # compute v2f0
             for extrinsic_port in range(self.dv_max):
                 v2f0_vview[:,extrinsic_port] = np.sum(np.delete(f2v, extrinsic_port, axis=1), axis=1)
-            v2f0_vview[self.v_mask] = 0
+            v2f0_vview[np.logical_not(self.v_mask)] = 0
 
             # factor node update
             f2v = (f2v0_vview * shaped_gamma + v2f0_vview * (shaped_gamma - 1)) * (1 - damping) + f2v * damping

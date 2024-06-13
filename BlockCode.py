@@ -56,7 +56,7 @@ class BlockCode:
         '''
         checks wether @words is/are a codeword
         '''
-        return not np.any((self.H @ words) % 2, axis=-1)
+        return np.logical_not(np.any(((self.H @ words.T) % 2).T, axis=-1))
     
     def codewords(self):
        '''
