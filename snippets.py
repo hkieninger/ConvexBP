@@ -26,6 +26,10 @@ H_hamming = np.array([[1, 0, 1, 0, 1, 0, 1],
                       [0, 0, 0, 1, 1, 1, 1]], dtype=int)
 n7k4_hamming = BlockCode.BlockCode(H_hamming)
 
+H_24_12_golay = golay_24_12 = (np.load('blockcodes/opt_golay24_12_with_ends_even_more_weights.npz')['Hopt']).astype(int)
+n24_k12_golay = BlockCode.BlockCode(H_24_12_golay)
+
+
 def simulateAWGNChannelTransmission(code : BlockCode.BlockCode, EbN0 : float, num_cws : int) -> np.ndarray:
     '''
     simulates the transmission of @num_cws of @code over an AWGN channel with @EbN0
