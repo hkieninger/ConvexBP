@@ -106,6 +106,29 @@ def decode_with_standart_bp(blockwise : bool, rx : np.ndarray, EbN0 : float,
     mpa_estimate = np.argmax(var_beliefs, axis=2) # decode with beliefs
     return (mpa_estimate, iterations)
 
+def decode_with_standart_log_bp(blockwise : bool, rx : np.ndarray, EbN0 : float, 
+                            code : BlockCode.BlockCode, bp : BeliefPropagation.BeliefPropagation, 
+                            max_iters : int, rtol : float, atol : float, infty : float) -> tuple[np.ndarray, np.ndarray]:
+    '''
+    decodes @rx using standard BP (Bethe Approximation), if @blockwise = True MPA is used else SPA is used
+    @return the decoded (code-)word and the amount of bp iterations until convergence, if iterations[idx] == max_iters BP didn't converge
+    '''
+    var_beliefs = np.empty((*rx.shape, 2))
+    iterations = np.empty(var_beliefs.shape[0])
+    gamma = bp.gammaBethe()
+    for cw_idx in range(var_beliefs.shape[0]):
+        (var_beliefs[cw_idx,:], _, iterations[cw_idx]) = bp.run_log_belief_propagation(
+            max_iters=max_iters,
+            rtol=rtol,
+            atol=atol,
+            infty= infty,
+            log_factors=np.log(code.factors_AWGN(rx[cw_idx], EbN0)),
+            max_product=blockwise,
+            gamma=gamma,
+        )
+    mpa_estimate = np.argmax(var_beliefs, axis=2) # decode with beliefs
+    return (mpa_estimate, iterations)
+
 # channel impulse response of symbol detection Ising model recommended by Luca
 h_impulse_ising_model = np.array([0.408, 0.815, 0.408])
 
