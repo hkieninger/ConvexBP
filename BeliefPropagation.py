@@ -220,7 +220,7 @@ class BeliefPropagation:
             probability_distribution_factor /= np.max(probability_distribution_factor)
             probability_distribution_marginals /= np.max(probability_distribution_marginals)
         
-        variable_beliefs[variable_beliefs==0] = np.min(variable_beliefs[variable_beliefs != 0]) # TEST: remove later
+        #variable_beliefs[variable_beliefs==0] = np.min(variable_beliefs[variable_beliefs != 0]) # TEST: remove later
         for variable in range(self.n):
             shape = np.ones(self.n, dtype=int)
             shape[variable] = self.s

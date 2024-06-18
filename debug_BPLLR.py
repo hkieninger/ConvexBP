@@ -7,32 +7,33 @@ np.seterr(all="warn")
 import snippets
 import utils
 import BinaryBP
+import LogBeliefPropagation
 
 num_cws = 100
 max_iters = 500
 EbN0 = 2
 code = snippets.n7k4_hamming
-arg_weired = 50
+arg_weired = 41
 
 rx = snippets.simulateAWGNChannelTransmission(code, EbN0, num_cws)
 rx = rx[arg_weired:arg_weired+1]
 num_cws = 1
 
-bp = BinaryBP.BinaryBP(code.adjacency_matrix())
+bp = LogBeliefPropagation.LogBeliefPropagation(code.adjacency_matrix(), state_domain_size=2)
 
 c_var = bp.c_var_Bethe()
 print(c_var)
 gamma = bp.gammaDefaultCBP()
 print(gamma)
 
-var_beliefs = np.empty(rx.shape)
+var_beliefs = np.empty((*rx.shape, 2))
 check_beliefs = np.empty((num_cws, bp.m) + bp.df_max * (2,))
 iterations = np.empty(var_beliefs.shape[0])
 
 numerical_issues = np.zeros(num_cws, dtype=bool)
 for cw_idx in range(var_beliefs.shape[0]):
     try:
-        (var_beliefs[cw_idx,:], check_beliefs[cw_idx,:], iterations[cw_idx]) = bp.run_llr_belief_propagation(
+        (var_beliefs[cw_idx,:], check_beliefs[cw_idx,:], iterations[cw_idx]) = bp.run_log_belief_propagation(
             max_iters=max_iters,
             rtol=1e-8,
             atol=1e-12,
@@ -58,7 +59,7 @@ var_beliefs = var_beliefs[np.logical_not(numerical_issues)]
 converged = iterations < max_iters
 converged_cnt = np.sum(converged)
 print(f"{converged_cnt / num_cws * 100}% converged ({converged_cnt}/{num_cws})")
-mpa_assignment = 0.5*(1-np.sign(var_beliefs)) # decode with beliefs
+mpa_assignment = np.argmax(var_beliefs, axis=2) # decode with beliefs
 
 
 map_assignment = snippets.bruteforce_blockwiseMAP_AWGNChannel(code, rx)
@@ -82,7 +83,7 @@ if converged_cnt < num_cws:
     print(f"not converged and unequal {notconverged_unequal_cnt / (num_cws - converged_cnt) * 100} % ({notconverged_unequal_cnt}/{num_cws - converged_cnt})")
     print(f"not converged and equal {notconverged_equal_cnt / (num_cws - converged_cnt) * 100} % ({notconverged_equal_cnt}/{num_cws - converged_cnt})")
 
-min_abs_llr = np.min(np.abs(var_beliefs), axis=1)
+min_abs_llr = np.min(np.abs(var_beliefs[:,:,0] - var_beliefs[:,:,1]), axis=1)
 
 # finite_llrs = min_abs_llr[min_abs_llr < float('inf')]
 # if len(finite_llrs) == 0:

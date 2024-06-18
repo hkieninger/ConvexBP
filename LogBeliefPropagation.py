@@ -146,3 +146,19 @@ class LogBeliefPropagation(BeliefPropagation.BeliefPropagation):
             temperature=temperature)
         
         return (variable_beliefs, factor_beliefs, iter)
+    
+    def bruteforce_MAP(self, log_factors):
+        log_distribution = np.zeros((log_factors.shape[0],) + self.n * (self.s,))
+        for factor in range(self.m):
+            variables = np.nonzero(self.adjacency_matrix[factor,:])[0]
+            shape = np.ones(1 + self.n, dtype=int)
+            shape[0] = log_factors.shape[0]
+            shape[1 + variables] = self.s
+            idx_non_const_dims = (slice(None),) * (1 + self.df[factor]) + (self.df_max - self.df[factor]) * (1,)
+            log_distribution += log_factors[:,factor][idx_non_const_dims].reshape(shape)
+        argmax_flattened = np.argmax(log_distribution.reshape(log_factors.shape[0],self.s**self.n), axis=1)
+        argmax = np.zeros((log_factors.shape[0],self.n), dtype=int)
+        for dim in range(self.n):
+            argmax[:,self.n - 1 - dim] = argmax_flattened % self.s
+            argmax_flattened //= self.s
+        return argmax

@@ -15,6 +15,7 @@ class TestLogBeliefPropagation(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
+        np.random.seed(3845)
         self.bp = LogBeliefPropagation.LogBeliefPropagation(adjacency_matrix=self.code.adjacency_matrix(), state_domain_size=2)
         self.rx = snippets.simulateAWGNChannelTransmission(self.code, self.EbN0, self.num_cws)
     
@@ -61,3 +62,10 @@ class TestLogBeliefPropagation(unittest.TestCase):
         map_estimate = snippets.bruteforce_bitwiseMAP_AWGNChannel(self.code, self.rx, self.EbN0)
         mpa_unequal_map = np.sum(np.logical_xor(spa_estimate, map_estimate), axis=1) > 0
         self.assertEqual(np.sum(mpa_unequal_map), 0, "some SPA estimates do not correspond to bitwise MAP")
+
+    def test_bruteforce_MAP(self):
+        map_correlation = snippets.bruteforce_blockwiseMAP_AWGNChannel(self.code, self.rx)
+        log_factors = np.array([np.log(self.code.factors_AWGN(self.rx[idx], self.EbN0)) for idx in range(self.num_cws)])
+        map_general = self.bp.bruteforce_MAP(log_factors)
+        general_unequal_correlation = np.sum(np.logical_xor(map_general, map_correlation), axis=1) > 0
+        self.assertEqual(np.sum(general_unequal_correlation), 0, "general MAP and correlation MAP do not correspond")
