@@ -193,3 +193,22 @@ def bruteforce_MAP_symbol_detection(y : np.ndarray, h : np.ndarray = h_impulse_i
     diff = y.reshape(num_cws, N + L, 1) - noise_free_channel_outputs.reshape(1, N + L, 2**N) # shape (num_cws, N+L, 2**N)
     norm_squared = np.sum(diff**2, axis=1) # shape (num_cws, 2**N)
     return codewords[np.argmin(norm_squared, axis=1)]
+
+def simulateLinearInterferenceAWGNChannelTransmission(code : BlockCode.BlockCode, EbN0 : float, impulse_response : np.ndarray, num_cws : int) -> np.ndarray:
+    '''
+    simulates the transmission of @num_cws of @code over an linear interference AWGN channel with @impulse_response and @EbN0
+    @return a numpy array of shape (num_cws, code.n + len(impulse_response) - 1)
+    '''
+    N = code.n
+    L = len(impulse_response) - 1
+    # Generate random input bits.
+    info_bits = np.random.randint(2, size=(num_cws, code.k))
+    # Encoder
+    code_bits = (info_bits @ code.G) % 2
+    # BPSK mapping.
+    tx = (-1) ** code_bits
+    # Apply linear interference and noise
+    EsN0_lin =  code.r * 10**(EbN0/10)
+    sigma = 1 / np.sqrt(2 * EsN0_lin)
+    rx = np.row_stack([np.convolve(tx[cw_idx], impulse_response) + np.random.randn(N + L) * sigma for cw_idx in range(num_cws)]) # shape (num_cws, N + L)
+    return rx

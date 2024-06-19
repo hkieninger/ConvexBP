@@ -61,16 +61,19 @@ class BeliefPropagation:
         c = np.zeros(self.n)
         for (factor, variable) in zip(self.row,self.col):
             c[variable] -= inverse_df[factor]
-        return c 
+        return c
+    
+    def c_var2gamma(self, c_var):
+        return self.dv / (2 * self.dv - 1 + c_var)
     
     def gammaBethe(self):
         return np.ones(self.n)
 
     def gammaTrivialCBP(self):
-        return self.dv
+        return self.c_var2gamma(self.c_var_TrivialCBP())
     
     def gammaDefaultCBP(self):
-        return self.dv / (1 - self.c_var_DefaultCBP())
+        return self.c_var2gamma(self.c_var_DefaultCBP())
 
 
     def belief_propagation(self, factors : np.ndarray, max_product : bool, gamma : np.ndarray, temperature : float = 1, damping : float = 0) -> Iterator[tuple[np.ndarray, np.ndarray]]:

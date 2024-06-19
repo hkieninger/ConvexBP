@@ -64,10 +64,15 @@ class LogBeliefPropagation(BeliefPropagation.BeliefPropagation):
                 v2f0_vview[:,extrinsic_port,:] = np.sum(np.delete(f2v, extrinsic_port, axis=1), axis=1)
             v2f0_vview[np.logical_not(self.v_mask)] = 0
 
+            power_zero_mask = gamma - 1 == 0 # to handle 0 * -infty = 0
             # factor node update
-            f2v = (f2v0_vview * shaped_gamma + v2f0_vview * (shaped_gamma - 1)) * (1 - damping) + f2v * damping
+            v2f0_vview_masked = np.copy(v2f0_vview)
+            v2f0_vview_masked[power_zero_mask] = 0
+            f2v = (f2v0_vview * shaped_gamma + v2f0_vview_masked * (shaped_gamma - 1)) * (1 - damping) + f2v * damping
             # variable node update
-            v2f = (v2f0_vview * shaped_gamma + f2v0_vview * (shaped_gamma - 1)) * (1 - damping) + v2f * damping
+            f2v0_vview_masked = np.copy(f2v0_vview)
+            f2v0_vview_masked[power_zero_mask] = 0
+            v2f = (v2f0_vview * shaped_gamma + f2v0_vview_masked * (shaped_gamma - 1)) * (1 - damping) + v2f * damping
 
             # normalize messages such that maximum entry is 0
             f2v -= np.max(f2v, axis=2, keepdims=True)
